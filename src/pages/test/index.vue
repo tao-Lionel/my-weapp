@@ -10,15 +10,7 @@
       <view style="width: 56px; text-align: center">
         <van-icon name="cross" />
       </view>
-      <van-button
-        round
-        block
-        color="linear-gradient(to right, #FC7527, #FF2C00)"
-        style="width: 50%"
-        @touchend="onTouchend"
-        @longpress="onStStart"
-        @touchmove="onTouchMove"
-      >
+      <van-button round block color="linear-gradient(to right, #FC7527, #FF2C00)" style="width: 50%" @touchend="onTouchend" @longpress="onStStart" @touchmove="onTouchMove">
         <view>
           <text style="font-size: 36rpx">{{ !recording ? "按住后请说话" : "松开完成" }}</text>
         </view>
@@ -47,6 +39,8 @@ const sleep = require("./utils/util").sleep;
 
 const configUrl = `wss://nls-gateway.cn-shanghai.aliyuncs.com/ws/v1`;
 
+const DEFAULT = "请说话，我在听...";
+
 export default {
   components: {},
   data() {
@@ -59,12 +53,13 @@ export default {
         numberOfChannels: 1,
         sampleRate: 16000,
         format: "PCM",
-        frameSize: 4
+        frameSize: 4,
       },
       sr: null,
       recording: false, // 是否录制中
       showCancelMask: false, // 是否显示取消按钮
-      timeout: null
+      timeout: null,
+      screenHeight: wx.getSystemInfoSync().screenHeight,
     };
   },
 
@@ -89,7 +84,7 @@ export default {
   methods: {
     async init() {
       // 监听已经录制完指定帧大小的回调
-      wx.getRecorderManager().onFrameRecorded((res) => {
+      wx.getRecorderManager().onFrameRecorded(res => {
         //当前帧是否正常录音结束前的最后一帧
         if (res.isLastFrame) {
           console.log("录音完成");
@@ -106,20 +101,20 @@ export default {
       });
 
       // 监听录音结束事件
-      wx.getRecorderManager().onStop((res) => {
+      wx.getRecorderManager().onStop(res => {
         console.log("结束录音...");
         // 录音文件的临时路径 (本地路径)
         console.log("录音文件的临时路径", res.tempFilePath);
         if (res.tempFilePath) {
           wx.getFileSystemManager().removeSavedFile({
-            filePath: res.tempFilePath
+            filePath: res.tempFilePath,
           });
         }
         this.recording = false;
       });
 
       //监听录音错误事件
-      wx.getRecorderManager().onError((res) => {
+      wx.getRecorderManager().onError(res => {
         console.log("录音出错:" + JSON.stringify(res));
       });
 
@@ -136,24 +131,24 @@ export default {
       let sr = new SpeechRecognition({
         url: configUrl,
         appkey: "QO3JEdOaoCqX1jXu",
-        token: "7397a84c4f7b4821acdb7815c93ba20f"
+        token: "7397a84c4f7b4821acdb7815c93ba20f",
       });
 
       console.log("sr==========", sr);
 
-      sr.on("started", (msg) => {
+      sr.on("started", msg => {
         console.log("语音识别开始", msg);
         this.stResult = msg;
       });
 
-      sr.on("changed", (msg) => {
+      sr.on("changed", msg => {
         console.log("语音识别中间结果:", msg);
         this.stResult = msg;
         // 回显到页面上的句子
         this.recorderResult = JSON.parse(msg).payload.result;
       });
 
-      sr.on("completed", (msg) => {
+      sr.on("completed", msg => {
         console.log("语音识别完成:", msg);
         this.stResult = msg;
         // 回显到页面上的句子
@@ -164,7 +159,7 @@ export default {
         console.log("连接关闭");
       });
 
-      sr.on("failed", (msg) => {
+      sr.on("failed", msg => {
         console.log("错误:", msg);
         this.stResult = msg;
       });
@@ -196,17 +191,20 @@ export default {
       }
 
       wx.getRecorderManager().start(this.recordConfig);
-      this.recorderResult = "请说话，我在听";
+      this.recorderResult = DEFAULT;
     },
 
     // 松开按钮
     async onTouchend(e) {
       console.log("松开按钮结束语音识别", e);
-      this.showCancelMask && this.showCancelMask = false;
+      setTimeout(() => {
+        this.showCancelMask = false;
+      }, 150);
+
       if (!this.recording) {
         uni.showToast({
           title: "说话时间太短",
-          icon: "none"
+          icon: "none",
         });
         return;
       }
@@ -218,7 +216,7 @@ export default {
     async onTouchMove(e) {
       if (this.timeout) clearTimeout(this.timeout);
       this.timeout = setTimeout(() => {
-        if (e.touches[0].clientY < 600) {
+        if (e.touches[0].clientY < this.screenHeight - 200) {
           // 取消
           console.log("移动取消", e);
           this.showCancelMask = true;
@@ -243,8 +241,8 @@ export default {
           console.log("close sr failed:" + JSON.stringify(e));
         }
       }
-    }
-  }
+    },
+  },
 };
 </script>
 
@@ -272,7 +270,7 @@ export default {
 .record-footer {
   width: 100%;
   position: fixed;
-  bottom: 60px;
+  bottom: 20px;
   display: flex;
   justify-content: space-evenly;
   align-items: center;
@@ -281,7 +279,7 @@ export default {
 
 .record-footer-mask {
   position: fixed;
-  bottom: 180px;
+  bottom: 160px;
   width: 100%;
   display: flex;
   flex-direction: column;
